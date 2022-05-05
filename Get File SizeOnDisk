@@ -2,34 +2,24 @@
 
 .SYNOPSIS
   Powershell script to get file size and size on disk of all files
-  in a directory, as well as their file path. This only gets files
-  with the attributes "Archive, SparseFile, ReparsePoint, Offline".
-  
-  No other file will be found. A quick modification of removing 
-  " -and $_.Attributes -eq 'Archive, SparseFile, ReparsePoint, Offline'"
-  on line 82 can remove this.
-  
-  This is useful for when finding Commvault stubbed files.
-  
-  Originally created and taken from this post below, but modified to
-  meet my requirements:
-  https://www.opentechguides.com/how-to/article/powershell/133/size-on-disk-ps.html
+  in a directory.
   
 .DESCRIPTION
   This PowerShell script gets file size and size on disk in bytes
   of all files in a directory, and displays the full path of file, 
   without including the filename in the path that "FullName" may 
-  provide.
+  provide
   
 .PARAMETER <path>
    Directory path of the files to check. If this parameter is not
    specified the default value is current directory. Ensure you 
-   wrap the path in double quotes.
+   wrap the path in double quotes if 
  
 .NOTES
-  Version:        1.1
-  Author:         Open Tech Guides; Taylor hassall
+  Version:        1.2
+  Author:         Open Tech Guides
   Creation Date:  06-Feb-2017
+  Last Modified: 03/05/2022
  
 .LINK
     www.opentechguides.com
@@ -99,8 +89,7 @@ Get-ChildItem $root -Recurse | Where-Object { -not $_.PSIsContainer -and $_.Attr
     Add-Member -InputObject $obj -MemberType NoteProperty -Name "File Name" -Value $_.Name
     Add-Member -InputObject $obj -MemberType NoteProperty -Name "Size" -Value $_.Length
     Add-Member -InputObject $obj -MemberType NoteProperty -Name "Size on Disk" -Value $size
-    $result += $obj
-}
+    $obj | export-csv "C:\Temp\outputfile.csv" -Append
 
-write-output $result
-$result | Export-Csv "C:\Temp\outputfile.csv"
+}
+Write-Host "Script has completed. Please investigate Logfile to find files required."
