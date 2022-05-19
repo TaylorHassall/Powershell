@@ -10,15 +10,21 @@
   without including the filename in the path that "FullName" may 
   provide
   
+  Intially used to find Stub Files from Commvault Backup Agent.
+  Uses attributes 'Archive, SparseFile, ReparsePoint, Offline' to
+  determine if the file is a stub and then export the file name 
+  and path to an excel file.
+  
 .PARAMETER <path>
    Directory path of the files to check. If this parameter is not
    specified the default value is current directory. Ensure you 
-   wrap the path in double quotes if 
+   wrap the path in double quotes if the path has spaces, or is
+   a network path.
  
 .NOTES
   Version:        1.2
-  Author:         Open Tech Guides
-  Creation Date:  06-Feb-2017
+  Author:         Taylor Hassall
+  Creation Date:  28-MAR-2022
   Last Modified: 03/05/2022
  
 .LINK
