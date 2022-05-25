@@ -2,7 +2,7 @@
 
 .SYNOPSIS
   Powershell script to get file size and size on disk of all files
-  in a directory.
+  in a directory when the object matches set Attributes. 
   
 .DESCRIPTION
   This PowerShell script gets file size and size on disk in bytes
@@ -22,10 +22,10 @@
    a network path.
  
 .NOTES
-  Version:        1.2
+  Version:        1.3
   Author:         Taylor Hassall
   Creation Date:  28-MAR-2022
-  Last Modified: 03/05/2022
+  Last Modified:  25/05/2022
  
 .LINK
     www.opentechguides.com
