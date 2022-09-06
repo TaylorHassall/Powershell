@@ -1,8 +1,8 @@
-<#
+/<#
 
 .SYNOPSIS
   Powershell script to get file size and size on disk of all files
-  in a directory when the object matches set Attributes. 
+  in a directory.
   
 .DESCRIPTION
   This PowerShell script gets file size and size on disk in bytes
@@ -10,22 +10,16 @@
   without including the filename in the path that "FullName" may 
   provide
   
-  Intially used to find Stub Files from Commvault Backup Agent.
-  Uses attributes 'Archive, SparseFile, ReparsePoint, Offline' to
-  determine if the file is a stub and then export the file name 
-  and path to an excel file.
-  
 .PARAMETER <path>
    Directory path of the files to check. If this parameter is not
    specified the default value is current directory. Ensure you 
-   wrap the path in double quotes if the path has spaces, or is
-   a network path.
+   wrap the path in double quotes if 
  
 .NOTES
-  Version:        1.3
-  Author:         Taylor Hassall
-  Creation Date:  28-MAR-2022
-  Last Modified:  25/05/2022
+  Version:        1.21
+  Author:         Open Tech Guides
+  Creation Date:  06-Feb-2017
+  Last Modified: 06/09/2022
  
 .LINK
     www.opentechguides.com
@@ -36,12 +30,11 @@
   Get-FileSizeOnDisk "\\Server01\Datashare01\"
 
 #>
-   
 
 param (
  [string]$root='.'
 )
-
+Write-Host "$root is the CSV Location"
 
 $source = @"
  using System;
@@ -85,17 +78,22 @@ Add-Type -TypeDefinition $source
 
 $result = @()
 
-Get-ChildItem $root -Recurse | Where-Object { -not $_.PSIsContainer -and $_.Attributes -eq 'Archive, SparseFile, ReparsePoint, Offline'} | Foreach-Object {
-  
-    $FullPath = $_.FullName
-    $Path = Split-Path -path $FullPath
-    $size = [Win32.Disk]::GetSizeOnDisk($_.FullName)
-    $obj = New-Object PSObject
-    Add-Member -InputObject $obj -MemberType NoteProperty -Name "Path" -Value $Path
-    Add-Member -InputObject $obj -MemberType NoteProperty -Name "File Name" -Value $_.Name
-    Add-Member -InputObject $obj -MemberType NoteProperty -Name "Size" -Value $_.Length
-    Add-Member -InputObject $obj -MemberType NoteProperty -Name "Size on Disk" -Value $size
-    $obj | export-csv "C:\Temp\outputfile.csv" -Append
-
+$SearchPaths = Import-Csv -path $root
+foreach ($Line in $SearchPaths) {
+  Write-host "$Line"
+  Write-host "$Line.Location"
+  Get-ChildItem -Recurse | Where-Object{-not $_.PSIsContainer -and $_.Attributes -eq 'Archive, SparseFile, RepairsePoint, Offline'} | Foreach-Object{
+  $Path = Split-Path -path $FullPath
+  $size = [Win32.Disk]::GetSizeOnDisk($_.FullName)
+  $obj = New-Object PSObject
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "Path" -Value $Path
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "File Name" -Value $_.Name
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "Size" -Value $_.Length
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "Size on Disk" -Value $size
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "Creation Time" -Value $_.CreationTime
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "Last Modified Time" -Value $_.LastWriteTime
+  Add-Member -InputObject $obj -MemberType NoteProperty -Name "Last Accessed Time" -Value $_.LastAccessTime
+  $obj | export-csv "C:\Temp\outputfile.csv" -Append
+  }
 }
 Write-Host "Script has completed. Please investigate Logfile to find files required."
