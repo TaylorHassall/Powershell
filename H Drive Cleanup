@@ -1,0 +1,91 @@
+<#Note, this only checks if the folder name exists in AD. Some users may have a folder, but their H Drive is not set in HomeDirectory
+This will not matter, as their H Drive would not be in use or accessible by the user anyway.
+.SYNOPSIS
+    This script will iterate through a specified location, 
+    compare this path/entry against the "homeDirectory" attribute
+    across every entry in AD. If it matches something in AD, it 
+    will not remove the folder.
+    
+    If it fails to get a match it deletes the directory.
+    
+.PARAMETER <path>
+    Change the Domains if you require to change domain, and ServerName
+    $HDriveFodlerBase will need to be set if this changes in future
+ 
+.NOTES
+  Version:        1.0
+  Author:         Taylor Hassall
+  Creation Date:  27-JUN-2022
+  Last Modified:  04/07/2022
+   
+#>
+$Date = get-date -format "ddMMMM yyyy"
+Start-Transcript -path "CHANGEME$date.log" -append
+$ErrorActionPreference= "silentlycontinue"
+$HDrivefolderBase = "CHANGEME" #Sets the H Drive folder base, in case you ever need to change it.
+$userFolders = Get-ChildItem -Path "$HDrivefolderBase" | Where-Object{ $_.PSIsContainer} | select-object -ExpandProperty Name #Gets all subfolders (only) in the $HDriveFolderBase folder.
+$PurgeSource = "CHANGEME"
+
+Foreach($folder in $userFolders) { #loops through each of the $userFolders folders
+    if($folder -like "*.Domain1" -or "*.Domain2"){  #this part removes any suffixes
+        clear-Variable -name "existCheckDomain2Bool","ExistCheckDomain1Bool","ExistCheckTrue","enabledCheckDomain2","enabledCheckDomain1","enabledCheckDomain2Bool","enabledCheckDomain1Bool","userDomain2","userDomain1","CSVExportFormatObject"#clears variables to prevent incorrectly logging duplicate data
+        $folderRename = ($folder).Replace(".Domain1","").Replace(".DOMAIN1","").replace(".Domain2","").replace(".DOMAIN2","") #searches and removed the .Domain1 or .Domain2 suffix from the folder name on line 21
+        $userDomain2 = (Get-ADUser -server AS2-P-DC-03 -filter "homeDirectory -like '*$folderRename*'") #queries the AD Server for the suer, cannot use Global LDAP Catalogue, does not return homeDirectory Data. Therefore storing in it's own variable
+        $userDomain1 = (Get-ADUser -filter "homeDirectory -like '*$folderRename*'") #as above
+        $ExistCheckDomain2Bool = [boolean]$userDomain2 #sets the boolean Value of $userDomain2 to $exist Check Domain2. If the user Exists and has data AT ALL, the $ExistCheckDomain2bool is set to True
+        $ExistCheckDomain1Bool = [boolean]$userDomain1 #as above
+
+        if (($ExistCheckDomain2Bool -eq $true) -or ($ExistCheckDomain1Bool -eq $true)) { #Checks the Boolean Value of $ExistCheckDomain2bool, or $$ExistCheckDomain1Bool, if either is True, sets an additional value $ExistCheckTrue to True
+            $ExistCheckTrue = $true
+            }elseif (($ExistCheckDomain2Bool -eq $false) -or ($ExistCheckDomain1Bool -eq $false)) {#if Does not exist, sets to false, and so it skips the next if statement.
+                $ExistCheckTrue = $false
+                write-host -ForegroundColor Red "User with homDirectory $folder donesn't exist in AD, Deleting"
+                Takeown /f "$HDrivefolderBase$folder" /r #Takes ownership of folder - Home Drives owners are set to the user. Cannot robocopy to, or delete without permissions
+                Robocopy "$PurgeSource" "$HDrivefolderBase$folder" /MT:16 /purge #Deletes the folder because the homeDirectory from $folder does not exist anywhere in AD. 
+                Remove-Item -path "$HDrivefolderBase$folder" -recurse #Removes the remaining folder
+            }
+        if ($ExistCheckTrue -eq $true) { #protip: do not go $existCheckTrue = $true. You may spend 45M Wondering why it's not working. Thank you Tom.)
+            #one of the below will error, only one of the users will actually have data inside of it. "Get-ADUser : Cannot validate argument on parameter 'Identity'. The argument is null or an element of the argument collection contains a null value."
+            $enabledCheckDomain2 = (Get-ADUser -Identity $userDomain2 -properties Enabled).enabled 
+            $enabledCheckDomain1 = (Get-ADUser -Identity $userDomain1 -properties Enabled).enabled
+            if ($enabledCheckDomain2 -eq $false -or $enabledCheckDomain1 -eq $false) {
+                #Checks if the user is disabled, if disabled, it will go to the next else and delete the folder.
+                $enabledCheckDomain2Bool = $false
+                $enabledCheckDomain1Bool = $false
+                write-host -ForegroundColor Red "User with homeDirectory $folder Exists, but is not Enabled, Deleting."
+                Takeown /f "$HDrivefolderBase$folder" /r #Takes ownership of folder - Home Drives owners are set to the user. Cannot robocopy to, or delete without permissions
+                Robocopy "$PurgeSource" "$HDrivefolderBase$folder" /MT:16 /purge #Deletes the folder because the homeDirectory from $folder does not exist anywhere in AD. 
+                Remove-Item -path "$HDrivefolderBase$folder" -recurse #Removes the remaining folder
+                }else {
+                    $enabledCheckDomain2Bool = $true
+                    $enabledCheckDomain1Bool = $true
+                }
+        }
+        if ($enabledCheckDomain2Bool -eq $true -or $enabledCheckDomain1Bool -eq $true) {
+            write-host -ForegroundColor Green "User with homeDirectory $folder exists and is enabled ignoring folder."
+            }else { 
+                #area to format the data for export into CSV.
+                $PSOPath = (-join("$HDrivefolderBase","$folder")) #Creates and stores the path
+                $CSVExportFormatObject = New-Object PSObject #Creates a PSObject to create array of data.
+                Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Path" -Value $PSOPath
+            }    
+        if (($userDomain2).name -ne $null) { #uses -ne $null to log something if ANYTHING exists. Something will exist if the user exists
+            Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Name" -Value ($userDomain2).Name
+            }elseif (($userDomain1).name -ne $null) {
+                Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Name" -Value ($userDomain1).Name
+                }else {
+                    Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Name" -Value "Null"
+                }
+        
+        if (($userDomain2).Enabled -ne $null) {
+            Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Enabled" -Value ($userDomain2).Enabled
+            }elseif (($userDomain1).Name -ne $null) {
+                Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Enabled" -Value ($userDomain1).Enabled
+                }else {
+                    Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Enabled" -Value "Null"
+                }
+
+        Add-Member -InputObject $CSVExportFormatObject -MemberType NoteProperty -Name "Exist" -Value $ExistCheckTrue
+        $CSVExportFormatObject | Export-csv "CHANGEME$date.csv" -append -NoTypeInformation          
+        }
+    }
